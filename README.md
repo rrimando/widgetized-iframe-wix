@@ -6,5 +6,5 @@
 *If you have PHP installed you can run the code with:*
 
 ```
-    php -S localhost:8000<
+    php -S localhost:8000
 ```
