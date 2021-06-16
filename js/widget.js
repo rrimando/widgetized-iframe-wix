@@ -2,40 +2,93 @@ console.log('Loaded Widget JS')
 
 $(document).ready(function () {
     var control = $('.door-control'),
-        authToken = false,
-        authUrl = false,
-        authValidUrl = false,
-        apiUrl = false,
-        headers = {
-            'Authentication': authToken
-        },
-        getAjax = function (url) {
-            if (authToken) {
-                // Headers contain the authentication
-                return $.ajax({ url: url, dataType: 'json', headers: headers });
-            } else {
-                console.log('You are not authenticated yet');
-            }
+        apiProtocol = 'http',
+        apiServer = 'localhost:8080',
+        apiEndPoint = 'api',
+        apiUrl = `${apiProtocol}://${apiServer}/${apiEndPoint}`,
+        authUrl = `${apiUrl}/v1/authorization/tokens`,
+        doorApiUri = `${apiUrl}/v1/doors/`,
+        ioBoardsApiUri = `${apiUrl}/v1/ioboards/5/inputs`, /* Board ID is Hardcoded */
+        /* AUTHENTICATION DATA */
+        username = '',
+        password = '',
+        grant_type = '',
+        client_id = '',
+        authToken = '',
+        refreshToken = '',
+        getAjax = function (url, type, data) {
+            // Headers contain the authentication
+            $.ajax({
+                url: url, data, type: type, dataType: 'json', beforeSend: function (xhr) {
+                    if (authToken) {
+                        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+                    }
+                },
+                success: function (data) {
+                    var json = $.parseJSON(data);
+                    return json;
+                },
+                error: function (data) {
+                    var json = $.parseJSON(data);
+                    alert(json.error);
+                }
+            })
         },
         getToken = function () {
+            var data = {
+                'username': username,
+                'password': password,
+                'grant_type': grant_type,
+                'client_id': client_id,
+            }
             if (authUrl) {
-                getAjax(authUrl);
+                var response = getAjax(authUrl, 'POST', data);
+                authToken = response['access_token'];
+                refreshToken = response['refresh_token']
             } else {
-                return true // In test mode
+                return true // In test mode if url is false
             }
         },
-        checkAuthStatus = function () {
+        refreshToken = function () {
+            var data = {
+                'refresh_token': refreshToken,
+                'grant_type': 'refresh_token'
+            }
+
             if (authValidUrl) {
-                var authValid = getAjax(authValidUrl);
+                var authValid = getAjax(authUrl, 'POST', data);
                 if (authValid == false) {
                     authenticate();
                 }
             } else {
-                return true // In test mode
+                return true // In test mode if url is false
             }
         },
         authenticate = function () {
             token = getToken();
+        },
+        checkDoorStatus = function (board_id, html_element) {
+            console.log(`Checking IO Statis ID:${board_id}`);
+
+            var data = {
+                'inputID': '17',
+            }
+
+            if (ioBoardsApiUri) {
+                /* Actual API Call To Close and Open Doors */
+                var response = getAjax(ioBoardsApiUri, 'GET', data);
+                if(response['isPressed']) {
+                    /* Indicate that the door is open */
+                    $(html_element).text('Open').removeClass('bg-danger').addClass('bg-success');
+                    $(html_element).attr('data-status', 'open');
+                } else {
+                    /* Indicate that the door is closed */
+                    $(html_element).text('Close').removeClass('bg-danger').addClass('bg-danger');
+                    $(html_element).attr('data-status', 'closed');
+                }
+            } else {
+                return true; // In test mode if url is false
+            }
         },
         openDoor = function (door_id, html_element) {
             console.log(`Opening with ID:${door_id}`);
@@ -44,11 +97,15 @@ $(document).ready(function () {
             $(html_element).text('Open').removeClass('bg-danger').addClass('bg-success');
             $(html_element).attr('data-status', 'open');
 
-            if (apiUrl) {
+            var data = {
+                'id': door_id
+            }
+
+            if (doorApiUri) {
                 /* Actual API Call To Close and Open Doors */
-                return getAjax(apiUrl, { 'door_id': door_id });
+                return getAjax(doorApiUri, 'GET', data);
             } else {
-                return true; // In test mode
+                return true; // In test mode if url is false
             }
         },
         closeDoor = function (door_id, html_element) {
@@ -58,9 +115,13 @@ $(document).ready(function () {
             $(html_element).text('Close').removeClass('bg-danger').addClass('bg-danger');
             $(html_element).attr('data-status', 'closed');
 
-            if (apiUrl) {
+            var data = {
+                'id': door_id
+            }
+
+            if (doorApiUri) {
                 /* Actual API Call To Close and Open Doors */
-                return getAjax(apiUrl, { 'door_id': door_id });
+                return getAjax(doorApiUri, 'GET', data);
             } else {
                 return true; // In test mode
             }
@@ -70,8 +131,11 @@ $(document).ready(function () {
     /* Authenticate */
     authenticate();
 
-    /* Check Authentication Periodically (5 Secs) */
-    setTimeout(checkAuthStatus(), 5000);
+    /* Check Authentication Periodically (30 Secs) */
+    setTimeout(refreshToken(), 30000);
+
+    /* Check Board IO Status Periodically (1 Secs) */
+    setTimeout(checkDoorStatus(), 1000);
 
     /* Bind Controls */
     control.on('click', function () {
@@ -82,7 +146,6 @@ $(document).ready(function () {
         var element = $(this),
             status = element.attr('data-status'),
             door_id = element.attr('data-door-id');
-
 
         if (status == 'closed') {
             openDoor(door_id, element);
