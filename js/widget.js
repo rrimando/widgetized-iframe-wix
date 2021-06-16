@@ -1,7 +1,10 @@
 console.log('Loaded Widget JS')
 
 $(document).ready(function () {
-    var control = $('.door-control'),
+    var iframe_url = window.location.href,
+        url = new URL(iframe_url);
+    doorID = url.searchParams.get("id");
+    control = $('.door-control'),
         apiProtocol = 'http',
         apiServer = 'localhost:8080',
         apiEndPoint = 'api',
@@ -75,9 +78,9 @@ $(document).ready(function () {
             }
 
             if (ioBoardsApiUri) {
-                /* Actual API Call To Close and Open Doors */
+                /* Actual API Call to check board status */
                 var response = getAjax(ioBoardsApiUri, 'GET', data);
-                if(response['isPressed']) {
+                if (response['isPressed']) {
                     /* Indicate that the door is open */
                     $(html_element).text('Open').removeClass('bg-danger').addClass('bg-success');
                     $(html_element).attr('data-status', 'open');
@@ -127,6 +130,8 @@ $(document).ready(function () {
             }
         };
 
+    /* Set the door id on control */
+    control.attr('data-door-id', doorID);
 
     /* Authenticate */
     authenticate();
@@ -145,7 +150,7 @@ $(document).ready(function () {
         // Check door status
         var element = $(this),
             status = element.attr('data-status'),
-            door_id = element.attr('data-door-id');
+            door_id = element.attr('data-door-id'); // alernatively doorID
 
         if (status == 'closed') {
             openDoor(door_id, element);
